@@ -3,8 +3,8 @@ package org.prathmesh.BankingBackend.Controller;
 import org.prathmesh.BankingBackend.Dto.UserCreateRequest;
 import org.prathmesh.BankingBackend.Dto.UserResponse;
 import org.prathmesh.BankingBackend.Service.UserService;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,38 +17,38 @@ public class UserController {
         this.userService = userService;
     }
 
-
+    // ---------------- REGISTER ----------------
     @PostMapping
-    public ResponseEntity<UserResponse> createUser(
+    public ResponseEntity<UserResponse> register(
             @RequestBody UserCreateRequest request) {
 
-        UserResponse response = userService.createUser(request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        return new ResponseEntity<>(
+                userService.createUser(request),
+                HttpStatus.CREATED
+        );
     }
 
+    // ---------------- PROFILE ----------------
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> myProfile(
+            Authentication authentication) {
 
-    @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
-
-        UserResponse response = userService.getUserById(id);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(
+                userService.getUserResponseByEmail(
+                        authentication.getName())
+        );
     }
 
+    // ---------------- DEACTIVATE ----------------
+    @PutMapping("/deactivate")
+    public ResponseEntity<Void> deactivate(
+            Authentication authentication) {
 
-    @GetMapping
-    public ResponseEntity<UserResponse> getUserByEmail(
-            @RequestParam String email) {
+        userService.deactivateUser(
+                userService.getByEmail(
+                        authentication.getName()).getId()
+        );
 
-        UserResponse response = userService.getUserByEmail(email);
-        return ResponseEntity.ok(response);
-    }
-
-
-    @PutMapping("/{id}/deactivate")
-    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
-
-        userService.deactivateUser(id);
         return ResponseEntity.noContent().build();
     }
-
 }

@@ -9,13 +9,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-
 @Service
 @RequiredArgsConstructor
 public class KycService {
 
     private final KycRepository kycRepository;
 
+    // =====================================================
+    // USER: SUBMIT KYC
+    // =====================================================
+
+    @Transactional
     public Kyc submitKyc(
             User user,
             String aadhaar,
@@ -38,13 +42,21 @@ public class KycService {
         return kycRepository.save(kyc);
     }
 
-
+    // =====================================================
+    // ADMIN: VERIFY / REJECT KYC
+    // =====================================================
 
     @Transactional
     public void verifyKyc(Long kycId, boolean approve, String reason) {
 
         Kyc kyc = kycRepository.findById(kycId)
-                .orElseThrow();
+                .orElseThrow(() ->
+                        new RuntimeException("KYC not found"));
+
+        //  prevent double verification
+        if (kyc.getStatus() != KycStatus.PENDING) {
+            throw new RuntimeException("KYC already processed");
+        }
 
         if (approve) {
             kyc.setStatus(KycStatus.VERIFIED);
@@ -55,5 +67,4 @@ public class KycService {
             kyc.setRejectionReason(reason);
         }
     }
-
 }

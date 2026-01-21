@@ -8,7 +8,6 @@ import org.prathmesh.BankingBackend.Models.Kyc;
 import org.prathmesh.BankingBackend.Models.User;
 import org.prathmesh.BankingBackend.Service.KycService;
 import org.prathmesh.BankingBackend.Service.UserService;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,17 +19,12 @@ public class KycController {
     private final KycService kycService;
     private final UserService userService;
 
-    // ============================================================
-    // USER: SUBMIT KYC
-    // ============================================================
-
     @PostMapping("/submit")
     public String submitKyc(
             @RequestBody KycRequest request,
             Authentication authentication) {
 
         String email = authentication.getName();
-
         User user = userService.getByEmail(email);
 
         kycService.submitKyc(
@@ -41,49 +35,21 @@ public class KycController {
                 request.panImageUrl()
         );
 
-        return "KYC submitted successfully. Waiting for approval.";
+        return "KYC submitted successfully";
     }
 
-    // ============================================================
-    // USER: CHECK KYC STATUS
-    // ============================================================
-
     @GetMapping("/status")
-    public KycStatusResponse getStatus(Authentication authentication) {
+    public KycStatusResponse status(Authentication authentication) {
 
-        String email = authentication.getName();
-        User user = userService.getByEmail(email);
+        User user = userService.getByEmail(authentication.getName());
 
-        Kyc kyc = user.getKyc();
-
-        if (kyc == null) {
-            return new KycStatusResponse(
-                    KycStatus.NOT_SUBMITTED,
-                    null
-            );
+        if (user.getKyc() == null) {
+            return new KycStatusResponse(KycStatus.NOT_SUBMITTED, null);
         }
 
         return new KycStatusResponse(
-                kyc.getStatus(),
-                kyc.getRejectionReason()
+                user.getKyc().getStatus(),
+                user.getKyc().getRejectionReason()
         );
-    }
-
-    // ============================================================
-    // ADMIN: VERIFY KYC
-    // ============================================================
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/admin/verify/{kycId}")
-    public String verifyKyc(
-            @PathVariable Long kycId,
-            @RequestParam boolean approve,
-            @RequestParam(required = false) String reason) {
-
-        kycService.verifyKyc(kycId, approve, reason);
-
-        return approve
-                ? "KYC approved successfully"
-                : "KYC rejected successfully";
     }
 }
