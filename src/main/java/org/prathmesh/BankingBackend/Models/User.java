@@ -37,6 +37,10 @@ public class User {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Kyc kyc;
+
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

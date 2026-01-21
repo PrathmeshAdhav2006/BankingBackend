@@ -1,55 +1,48 @@
 package org.prathmesh.BankingBackend.Service;
 
-import org.prathmesh.BankingBackend.Dto.DepositRequest;
-import org.prathmesh.BankingBackend.Dto.TransactionResponse;
-import org.prathmesh.BankingBackend.Dto.TransferRequest;
-import org.prathmesh.BankingBackend.Dto.WithdrawRequest;
-import org.prathmesh.BankingBackend.Enums.AccountStatus;
-import org.prathmesh.BankingBackend.Enums.TransactionStatus;
-import org.prathmesh.BankingBackend.Enums.TransactionType;
-import org.prathmesh.BankingBackend.Models.Account;
-import org.prathmesh.BankingBackend.Models.Transaction;
-import org.prathmesh.BankingBackend.Repository.AccountRepository;
-import org.prathmesh.BankingBackend.Repository.TransactionRepository;
+import lombok.RequiredArgsConstructor;
+import org.prathmesh.BankingBackend.Dto.*;
+import org.prathmesh.BankingBackend.Enums.*;
+import org.prathmesh.BankingBackend.Models.*;
+import org.prathmesh.BankingBackend.Repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
-public class SimpleTransactionService implements TransactionService{
+@RequiredArgsConstructor
+public class SimpleTransactionService implements TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
 
-    public SimpleTransactionService(TransactionRepository transactionRepository ,
-                                   AccountRepository accountRepository)
-    {
-        this.transactionRepository = transactionRepository;
-        this.accountRepository = accountRepository ;
-    }
+    // ========================= TRANSFER =========================
 
     @Override
     @Transactional
-    public TransactionResponse transfer(TransferRequest request){
+    public TransactionResponse transfer(TransferRequest request) {
 
         Account fromAccount = accountRepository
-                .findByAccountNumber(request.fromAccountNumber())
+                .findByAccountNumberForUpdate(request.fromAccountNumber())
                 .orElseThrow(() -> new RuntimeException("Sender account not found"));
 
         Account toAccount = accountRepository
-                .findByAccountNumber(request.toAccountNumber())
+                .findByAccountNumberForUpdate(request.toAccountNumber())
                 .orElseThrow(() -> new RuntimeException("Receiver account not found"));
 
-        if (fromAccount.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new RuntimeException("Sender account is not active");
-        }
+        validateAccount(fromAccount);
+        validateAccount(toAccount);
+
+        validateKyc(fromAccount.getUser());
 
         if (fromAccount.getBalance().compareTo(request.amount()) < 0) {
             throw new RuntimeException("Insufficient balance");
         }
 
+        // 💰 balance update
         fromAccount.setBalance(
                 fromAccount.getBalance().subtract(request.amount())
         );
@@ -58,155 +51,139 @@ public class SimpleTransactionService implements TransactionService{
                 toAccount.getBalance().add(request.amount())
         );
 
-
-        Transaction transaction = new Transaction();
-        transaction.setTransactionId(generateTransactionId());
-        transaction.setAmount(request.amount());
-        transaction.setType(TransactionType.TRANSFER);
-        transaction.setStatus(TransactionStatus.SUCCESS);
-        transaction.setDescription(request.description());
-        transaction.setFromAccount(fromAccount);
-        transaction.setToAccount(toAccount);
-
-        // 5️⃣ Persist
-        accountRepository.save(fromAccount);
-        accountRepository.save(toAccount);
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-        // 6️⃣ Return DTO
-        return mapToResponseDto(savedTransaction);
-    }
-
-    private String generateTransactionId() {
-        return "TXN-" + UUID.randomUUID()
-                .toString()
-                .substring(0, 8)
-                .toUpperCase();
-    }
-
-    private TransactionResponse mapToResponseDto(Transaction transaction) {
-        return new TransactionResponse(
-                transaction.getTransactionId(),
-                transaction.getAmount(),
-                transaction.getType(),
-                transaction.getStatus(),
-                transaction.getTimestamp(),
-                transaction.getFromAccount().getAccountNumber(),
-                transaction.getToAccount().getAccountNumber(),
-                transaction.getDescription()
+        Transaction txn = buildTransaction(
+                request.amount(),
+                TransactionType.TRANSFER,
+                request.description(),
+                fromAccount,
+                toAccount
         );
+
+        transactionRepository.save(txn);
+
+        return map(txn);
     }
 
+    // ========================= DEPOSIT =========================
 
     @Override
     @Transactional
     public TransactionResponse deposit(DepositRequest request) {
 
-        //  Fetch account
         Account account = accountRepository
-                .findByAccountNumber(request.accountNumber())
+                .findByAccountNumberForUpdate(request.accountNumber())
                 .orElseThrow(() -> new RuntimeException("Account not found"));
 
-        //  Validate account status
-        if (account.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new RuntimeException("Account is not active");
-        }
+        validateAccount(account);
+        validateAmount(request.amount());
 
-        //  Validate amount
-        if (request.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Deposit amount must be greater than zero");
-        }
-
-        //  Add balance
         account.setBalance(
                 account.getBalance().add(request.amount())
         );
 
-        //  Create transaction
-        Transaction transaction = new Transaction();
-        transaction.setTransactionId(generateTransactionId());
-        transaction.setAmount(request.amount());
-        transaction.setType(TransactionType.DEPOSIT);
-        transaction.setStatus(TransactionStatus.SUCCESS);
-        transaction.setDescription(request.description());
-
-        // Deposit → only TO account
-        transaction.setFromAccount(null);
-        transaction.setToAccount(account);
-
-        //  Persist
-        accountRepository.save(account);
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-        //  Return response DTO
-        return new TransactionResponse(
-                savedTransaction.getTransactionId(),
-                savedTransaction.getAmount(),
-                savedTransaction.getType(),
-                savedTransaction.getStatus(),
-                savedTransaction.getTimestamp(),
-                null, // fromAccountNumber (deposit)
-                savedTransaction.getToAccount().getAccountNumber(),
-                savedTransaction.getDescription()
+        Transaction txn = buildTransaction(
+                request.amount(),
+                TransactionType.DEPOSIT,
+                request.description(),
+                null,
+                account
         );
+
+        transactionRepository.save(txn);
+
+        return map(txn);
     }
+
+    // ========================= WITHDRAW =========================
 
     @Override
     @Transactional
     public TransactionResponse withdraw(WithdrawRequest request) {
 
-        //  Fetch account
         Account account = accountRepository
-                .findByAccountNumber(request.accountNumber())
+                .findByAccountNumberForUpdate(request.accountNumber())
                 .orElseThrow(() -> new RuntimeException("Account not found"));
 
-        //  Validate account status
-        if (account.getAccountStatus() != AccountStatus.ACTIVE) {
-            throw new RuntimeException("Account is not active");
-        }
+        validateAccount(account);
+        validateKyc(account.getUser());
+        validateAmount(request.amount());
 
-        //  Validate amount
-        if (request.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Withdraw amount must be greater than zero");
-        }
-
-        //  Check balance
         if (account.getBalance().compareTo(request.amount()) < 0) {
             throw new RuntimeException("Insufficient balance");
         }
 
-        //  Subtract balance
         account.setBalance(
                 account.getBalance().subtract(request.amount())
         );
 
-        //  Create transaction
-        Transaction transaction = new Transaction();
-        transaction.setTransactionId(generateTransactionId());
-        transaction.setAmount(request.amount());
-        transaction.setType(TransactionType.WITHDRAW);
-        transaction.setStatus(TransactionStatus.SUCCESS);
-        transaction.setDescription(request.description());
-
-        // Withdraw → only FROM account
-        transaction.setFromAccount(account);
-        transaction.setToAccount(null);
-
-        //  Persist
-        accountRepository.save(account);
-        Transaction savedTransaction = transactionRepository.save(transaction);
-
-        //  Return response DTO
-        return new TransactionResponse(
-                savedTransaction.getTransactionId(),
-                savedTransaction.getAmount(),
-                savedTransaction.getType(),
-                savedTransaction.getStatus(),
-                savedTransaction.getTimestamp(),
-                savedTransaction.getFromAccount().getAccountNumber(),
-                null, // toAccountNumber
-                savedTransaction.getDescription()
+        Transaction txn = buildTransaction(
+                request.amount(),
+                TransactionType.WITHDRAW,
+                request.description(),
+                account,
+                null
         );
+
+        transactionRepository.save(txn);
+
+        return map(txn);
     }
 
+    // ========================= HELPERS =========================
+
+    private void validateAccount(Account account) {
+        if (account.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new RuntimeException("Account is not active");
+        }
+    }
+
+    private void validateAmount(BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Amount must be greater than zero");
+        }
+    }
+
+    private void validateKyc(User user) {
+        if (user.getKyc() == null ||
+                user.getKyc().getStatus() != KycStatus.VERIFIED) {
+            throw new RuntimeException("KYC not verified");
+        }
+    }
+
+    private Transaction buildTransaction(
+            BigDecimal amount,
+            TransactionType type,
+            String description,
+            Account from,
+            Account to) {
+
+        Transaction txn = new Transaction();
+        txn.setTransactionId("TXN-" +
+                UUID.randomUUID().toString().substring(0, 10).toUpperCase());
+        txn.setAmount(amount);
+        txn.setType(type);
+        txn.setStatus(TransactionStatus.SUCCESS);
+        txn.setDescription(description);
+        txn.setFromAccount(from);
+        txn.setToAccount(to);
+        txn.setTimestamp(LocalDateTime.now());
+        return txn;
+    }
+
+    private TransactionResponse map(Transaction t) {
+        return new TransactionResponse(
+                t.getTransactionId(),
+                t.getAmount(),
+                t.getType(),
+                t.getStatus(),
+                t.getTimestamp(),
+                t.getFromAccount() != null
+                        ? t.getFromAccount().getAccountNumber()
+                        : null,
+                t.getToAccount() != null
+                        ? t.getToAccount().getAccountNumber()
+                        : null,
+                t.getDescription()
+        );
+    }
 }

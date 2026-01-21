@@ -1,7 +1,5 @@
 package org.prathmesh.BankingBackend.Service;
 
-
-
 import org.prathmesh.BankingBackend.Dto.UserCreateRequest;
 import org.prathmesh.BankingBackend.Dto.UserResponse;
 import org.prathmesh.BankingBackend.Enums.Role;
@@ -23,34 +21,61 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public UserResponse createUser(UserCreateRequest userCreateRequest) {
+    // =====================================================
+    // REGISTER USER
+    // =====================================================
 
+    public UserResponse createUser(UserCreateRequest request) {
 
-        if (userRepository.existsByEmail(userCreateRequest.email())) {
+        if (userRepository.existsByEmail(request.email())) {
             throw new RuntimeException("Email already exists");
         }
 
         User user = new User();
-        user.setFullName(userCreateRequest.fullName());
-        user.setEmail(userCreateRequest.email());
-        user.setPassword(passwordEncoder.encode(userCreateRequest.password()));
+        user.setFullName(request.fullName());
+        user.setEmail(request.email());
+        user.setPassword(passwordEncoder.encode(request.password()));
         user.setRole(Role.USER);
+        user.setActive(true);
 
-        User savedUser = userRepository.save(user);
+        User saved = userRepository.save(user);
 
         return new UserResponse(
-                savedUser.getId(),
-                savedUser.getFullName(),
-                savedUser.getEmail(),
-                savedUser.getCreatedAt()
+                saved.getId(),
+                saved.getFullName(),
+                saved.getEmail(),
+                saved.getCreatedAt()
         );
     }
 
-    @Transactional(readOnly = true)
-    public UserResponse getUserById(Long id) {
+    // =====================================================
+    // INTERNAL USE (ENTITY)
+    // =====================================================
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User Not Found"));
+    @Transactional(readOnly = true)
+    public User getByEmail(String email) {
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public User getById(Long id) {
+
+        return userRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found"));
+    }
+
+    // =====================================================
+    // API RESPONSE METHODS (DTO)
+    // =====================================================
+
+    @Transactional(readOnly = true)
+    public UserResponse getUserResponseById(Long id) {
+
+        User user = getById(id);
 
         return new UserResponse(
                 user.getId(),
@@ -61,10 +86,9 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserResponse getUserByEmail(String email) {
+    public UserResponse getUserResponseByEmail(String email) {
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User Not Found"));
+        User user = getByEmail(email);
 
         return new UserResponse(
                 user.getId(),
@@ -73,16 +97,17 @@ public class UserService {
                 user.getCreatedAt()
         );
     }
+
+    // =====================================================
+    // DEACTIVATE USER
+    // =====================================================
 
     @Transactional
     public void deactivateUser(Long id) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User Not Found"));
+        User user = getById(id);
 
         user.setActive(false);
-
-        userRepository.save(user);
+        // no save() needed (dirty checking)
     }
-
 }
