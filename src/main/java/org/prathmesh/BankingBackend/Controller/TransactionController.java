@@ -1,8 +1,8 @@
 package org.prathmesh.BankingBackend.Controller;
 
-import org.prathmesh.BankingBackend.Dto.*;
+import org.prathmesh.BankingBackend.Dto.TransferRequest;
+import org.prathmesh.BankingBackend.Dto.TransactionResponse;
 import org.prathmesh.BankingBackend.Service.TransactionService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,30 +16,17 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
+    // =====================================================
+    // USER → TRANSFER ONLY
+    // =====================================================
+
     @PostMapping("/transfer")
     public ResponseEntity<TransactionResponse> transfer(
             @RequestBody TransferRequest request) {
 
-        return ResponseEntity.ok(
-                transactionService.transfer(request)
-        );
-    }
+        TransactionResponse response =
+                transactionService.transfer(request);
 
-    @PostMapping("/deposit")
-    public ResponseEntity<TransactionResponse> deposit(
-            @RequestBody DepositRequest request) {
-
-        return ResponseEntity.ok(
-                transactionService.deposit(request)
-        );
-    }
-
-    @PostMapping("/withdraw")
-    public ResponseEntity<TransactionResponse> withdraw(
-            @RequestBody WithdrawRequest request) {
-
-        return ResponseEntity.ok(
-                transactionService.withdraw(request)
-        );
+        return ResponseEntity.ok(response);
     }
 }
