@@ -28,29 +28,36 @@ public class SecurityConfig {
             throws Exception {
 
         http
+                // Disable CSRF (REST API)
                 .csrf(csrf -> csrf.disable())
 
+                // Stateless session (JWT)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS))
 
+                // Authorization rules
                 .authorizeHttpRequests(auth -> auth
 
-                        // public APIs
+                        // ✅ Public APIs (No JWT required)
                         .requestMatchers(
                                 "/api/user",
-                                "/api/auth/login"
+                                "/api/auth/login",
+
+                                // ML Testing Endpoint
+                                "/public/**"
                         ).permitAll()
 
-                        // admin only
+                        // Admin APIs
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
 
-                        // everything else requires login
+                        // All other APIs need authentication
                         .anyRequest()
                         .authenticated()
                 )
 
+                // JWT Filter
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class
@@ -59,7 +66,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // used for login authentication
+    // Authentication manager for login
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration config)
@@ -68,8 +75,10 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
+    // Password encoder
     @Bean
-    public PasswordEncoder passwordEncoder(){
+    public PasswordEncoder passwordEncoder() {
+
         return new BCryptPasswordEncoder();
     }
 }

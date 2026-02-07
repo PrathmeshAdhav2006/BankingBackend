@@ -5,6 +5,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Map;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -37,19 +39,46 @@ public class GlobalExceptionHandler {
     // =========================
     // 400 - Bad Request
     // =========================
-// 400 - Bad Request
-    @ExceptionHandler({
-            BusinessException.class,
-            InsufficientBalanceException.class
-    })
-    public ResponseEntity<String> handleBusinessErrors(
-            RuntimeException ex) {
+
+    // ❗ REMOVED BusinessException from here
+    @ExceptionHandler(InsufficientBalanceException.class)
+    public ResponseEntity<String> handleBalance(
+            InsufficientBalanceException ex) {
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ex.getMessage());
     }
 
+    // =========================
+    // OTP Required
+    // =========================
+
+    @ExceptionHandler(OtpRequiredException.class)
+    public ResponseEntity<?> handleOtp(OtpRequiredException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Map.of(
+                        "status", "OTP_REQUIRED",
+                        "message", ex.getMessage()
+                ));
+    }
+
+    // =========================
+    // Business Errors
+    // =========================
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<?> handleBusiness(BusinessException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of(
+                        "status", "FAILED",
+                        "message", ex.getMessage()
+                ));
+    }
 
     // =========================
     // 500 - Server Error

@@ -29,4 +29,5 @@ public class AdminKycController {
                 ? "KYC approved"
                 : "KYC rejected";
     }
+
 }
