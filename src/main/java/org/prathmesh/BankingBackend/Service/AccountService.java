@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.prathmesh.BankingBackend.Dto.AccountCreateRequest;
 import org.prathmesh.BankingBackend.Dto.AccountResponse;
 import org.prathmesh.BankingBackend.Enums.AccountStatus;
+import org.prathmesh.BankingBackend.Enums.Role;
+import org.prathmesh.BankingBackend.Exception.*;
 import org.prathmesh.BankingBackend.Models.Account;
 import org.prathmesh.BankingBackend.Models.User;
 import org.prathmesh.BankingBackend.Repository.AccountRepository;
@@ -20,7 +22,7 @@ public class AccountService {
     private final AccountSequenceService accountSequenceService;
 
     // =====================================================
-    // CREATE ACCOUNT (JWT BASED)
+    // CREATE ACCOUNT
     // =====================================================
 
     @Transactional
@@ -28,45 +30,66 @@ public class AccountService {
             AccountCreateRequest request,
             String email) {
 
-        // 🔐 get logged-in user from JWT email
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new RuntimeException("User not found"));
+                        new BusinessException("User not found"));
 
         Account account = new Account();
 
-        // generate account number
+        // Generate account number
         account.setAccountNumber(
                 accountSequenceService.generateAccountNumber()
         );
 
         account.setAccountType(request.accountType());
-        account.setBalance(null); // auto handled by @PrePersist
+        account.setBalance(null); // handled by @PrePersist
         account.setAccountStatus(AccountStatus.ACTIVE);
         account.setUser(user);
 
         Account saved = accountRepository.save(account);
 
-        return new AccountResponse(
-                saved.getAccountNumber(),
-                saved.getAccountType(),
-                saved.getBalance(),
-                saved.getAccountStatus(),
-                saved.getCreatedAt()
-        );
+        return mapToResponse(saved);
     }
 
     // =====================================================
-    // GET ACCOUNT BY NUMBER
+    // GET ACCOUNT BY NUMBER (SECURED)
     // =====================================================
 
     @Transactional(readOnly = true)
-    public AccountResponse getAccountByNumber(String accountNumber) {
+    public AccountResponse getAccountByNumber(String accountNumber,
+                                              String email) {
 
+        // Get logged-in user
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new BusinessException("User not found"));
+
+        // Find account
         Account account = accountRepository
                 .findByAccountNumber(accountNumber)
                 .orElseThrow(() ->
-                        new RuntimeException("Account not found"));
+                        new AccountNotFoundException("Account not found"));
+
+        // ADMIN can access any account
+        if (user.getRole() == Role.ADMIN) {
+            return mapToResponse(account);
+        }
+
+        // USER can access only own account
+        if (!account.getUser().getEmail().equals(email)) {
+
+            throw new AccessDeniedBusinessException(
+                    "You are not allowed to access this account");
+        }
+
+        return mapToResponse(account);
+    }
+
+    // =====================================================
+    // HELPER
+    // =====================================================
+
+    private AccountResponse mapToResponse(Account account) {
 
         return new AccountResponse(
                 account.getAccountNumber(),

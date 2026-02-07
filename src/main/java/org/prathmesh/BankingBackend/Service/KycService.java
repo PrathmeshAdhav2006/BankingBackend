@@ -2,6 +2,7 @@ package org.prathmesh.BankingBackend.Service;
 
 import lombok.RequiredArgsConstructor;
 import org.prathmesh.BankingBackend.Enums.KycStatus;
+import org.prathmesh.BankingBackend.Exception.BusinessException;
 import org.prathmesh.BankingBackend.Models.Kyc;
 import org.prathmesh.BankingBackend.Models.User;
 import org.prathmesh.BankingBackend.Repository.KycRepository;
@@ -47,24 +48,28 @@ public class KycService {
     // =====================================================
 
     @Transactional
-    public void verifyKyc(Long kycId, boolean approve, String reason) {
+    public void verifyKyc(Long kycId,
+                          boolean approve,
+                          String reason) {
 
         Kyc kyc = kycRepository.findById(kycId)
                 .orElseThrow(() ->
-                        new RuntimeException("KYC not found"));
+                        new BusinessException("KYC not found"));
 
-        //  prevent double verification
-        if (kyc.getStatus() != KycStatus.PENDING) {
-            throw new RuntimeException("KYC already processed");
-        }
+        // ✅ ADMIN CAN ALWAYS UPDATE STATUS
 
         if (approve) {
+
             kyc.setStatus(KycStatus.VERIFIED);
             kyc.setVerifiedAt(LocalDateTime.now());
             kyc.setRejectionReason(null);
+
         } else {
-            kyc.setStatus(KycStatus.REJECTED);
+
+            kyc.setStatus(KycStatus.PENDING); // 👈 Reset back to pending
             kyc.setRejectionReason(reason);
         }
+
+        kycRepository.save(kyc);
     }
 }

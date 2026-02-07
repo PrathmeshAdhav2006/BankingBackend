@@ -2,39 +2,50 @@ package org.prathmesh.BankingBackend.Controller;
 
 import lombok.RequiredArgsConstructor;
 import org.prathmesh.BankingBackend.Dto.DepositRequest;
+import org.prathmesh.BankingBackend.Dto.TransferRequest;
 import org.prathmesh.BankingBackend.Dto.TransactionResponse;
 import org.prathmesh.BankingBackend.Dto.WithdrawRequest;
 import org.prathmesh.BankingBackend.Service.TransactionService;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/transactions")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
-public class AdminTransactionController {
+public class AdminTransactionController {  // ✅ NO @PreAuthorize
 
     private final TransactionService transactionService;
 
-    // =====================================================
-    // ADMIN → CASH DEPOSIT
-    // =====================================================
-
-    @PostMapping("/deposit")
-    public TransactionResponse deposit(
-            @RequestBody DepositRequest request) {
-
-        return transactionService.deposit(request);
+    @PostMapping("/transfer")
+    public ResponseEntity<TransactionResponse> transfer(
+            @RequestBody TransferRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionService.transfer(request, authentication));
     }
 
-    // =====================================================
-    // ADMIN → CASH WITHDRAW
-    // =====================================================
+    @PostMapping("/deposit")
+    public ResponseEntity<TransactionResponse> deposit(
+            @RequestBody DepositRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionService.deposit(request, authentication));
+    }
 
     @PostMapping("/withdraw")
-    public TransactionResponse withdraw(
-            @RequestBody WithdrawRequest request) {
+    public ResponseEntity<TransactionResponse> withdraw(  // ✅ Changed back to TransactionResponse
+                                                          @RequestBody WithdrawRequest request,
+                                                          Authentication authentication) {
+        return ResponseEntity.ok(transactionService.withdraw(request, authentication));
+    }
 
-        return transactionService.withdraw(request);
+    // TEMP DEBUG ENDPOINT - REMOVE AFTER TESTING
+    @PostMapping("/withdrawDebug")
+    public ResponseEntity<String> withdrawDebug(
+            @RequestBody WithdrawRequest request,
+            Authentication authentication) {
+        System.out.println("🎉 ENDPOINT REACHED!");
+        System.out.println("📧 Auth: " + (authentication != null ? authentication.getName() : "NULL"));
+        System.out.println("🏦 Account: " + request.accountNumber());
+        return ResponseEntity.ok("Account not found - " + request.accountNumber());
     }
 }

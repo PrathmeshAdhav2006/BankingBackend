@@ -29,31 +29,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // 🔹 No token → continue filter chain
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String token = authHeader.substring(7);
+        final String jwt = authHeader.substring(7);
         final String username;
 
         try {
-            username = jwtService.extractUsername(token);
+            username = jwtService.extractUsername(jwt);
         } catch (Exception e) {
-            // invalid / expired token
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 🔹 Authenticate only once per request
         if (username != null &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            var userDetails =
-                    userDetailsService.loadUserByUsername(username);
+            var userDetails = userDetailsService.loadUserByUsername(username);
 
-            if (jwtService.isTokenValid(token)) {
+            // ✅ FIXED: Use correct method signature
+            if (jwtService.isTokenValid(jwt)) {  // Only 1 parameter!
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -67,7 +64,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 .buildDetails(request)
                 );
 
-                // ✅ THIS LINE IS CRITICAL
                 SecurityContextHolder.getContext()
                         .setAuthentication(authentication);
             }

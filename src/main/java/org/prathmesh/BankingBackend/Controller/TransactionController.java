@@ -4,6 +4,8 @@ import org.prathmesh.BankingBackend.Dto.TransferRequest;
 import org.prathmesh.BankingBackend.Dto.TransactionResponse;
 import org.prathmesh.BankingBackend.Service.TransactionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,15 +19,17 @@ public class TransactionController {
     }
 
     // =====================================================
-    // USER → TRANSFER ONLY
+    // USER & ADMIN → TRANSFER (Users: own accounts only)
     // =====================================================
 
     @PostMapping("/transfer")
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<TransactionResponse> transfer(
-            @RequestBody TransferRequest request) {
+            @RequestBody TransferRequest request,
+            Authentication authentication) {
 
         TransactionResponse response =
-                transactionService.transfer(request);
+                transactionService.transfer(request, authentication);
 
         return ResponseEntity.ok(response);
     }

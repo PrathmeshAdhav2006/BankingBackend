@@ -44,10 +44,11 @@ public class AccountController {
 
     @GetMapping("/{accountNumber}")
     public ResponseEntity<AccountResponse> getAccount(
-            @PathVariable String accountNumber){
+            @PathVariable String accountNumber,
+            Authentication authentication) { // Get JWT principal
 
-        AccountResponse account =
-                accountService.getAccountByNumber(accountNumber);
+        String email = authentication.getName(); // JWT email claim
+        AccountResponse account = accountService.getAccountByNumber(accountNumber, email);
 
         return ResponseEntity.ok(account);
     }

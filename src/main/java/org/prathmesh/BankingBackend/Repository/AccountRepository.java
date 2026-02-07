@@ -17,4 +17,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
     Optional<Account> findByAccountNumberForUpdate(
             @Param("acc") String acc
     );
+
+
+    Optional<Account> findByAccountNumberAndUserEmail(String accountNumber, String email);
+
 }
